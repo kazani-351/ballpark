@@ -1,0 +1,1476 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>ballpark</title>
+<meta name="description" content="Estimate where a number falls on a line. A minimalist game of numerical intuition — daily challenge, world facts, reverse and survival modes." />
+<meta name="theme-color" content="#0c0d11" />
+
+<link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+
+<meta property="og:type" content="website" />
+<meta property="og:title" content="ballpark" />
+<meta property="og:description" content="Estimate where a number falls on a line. A minimalist game of numerical intuition — daily challenge, world facts, reverse and survival modes." />
+<meta property="og:image" content="/og-image.png" />
+<meta property="og:image:width" content="1200" />
+<meta property="og:image:height" content="630" />
+<meta property="og:site_name" content="ballpark" />
+<meta name="twitter:card" content="summary_large_image" />
+<meta name="twitter:title" content="ballpark" />
+<meta name="twitter:description" content="Estimate where a number falls on a line. A minimalist game of numerical intuition." />
+<meta name="twitter:image" content="/og-image.png" />
+<style>
+  :root {
+    --bg: #0c0d11;
+    --bg-soft: #14161c;
+    --fg: #e9e7e1;
+    --muted: #7e828b;
+    --accent: #8ad9b0;
+    --accent-2: #f5c26b;
+    --target: #6bb6f5;
+    --guess: #f5938a;
+    --line: #24262d;
+  }
+  :root[data-theme="light"] {
+    --bg: #f5f4ef;
+    --bg-soft: #e8e7df;
+    --fg: #1b1d23;
+    --muted: #6c707a;
+    --accent: #1f9d6b;
+    --accent-2: #b9791a;
+    --target: #2b7fd6;
+    --guess: #d6512f;
+    --line: #d3d2ca;
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0;
+    padding: 0;
+    height: 100%;
+    background:
+      radial-gradient(1200px 600px at 50% -10%, var(--bg-soft) 0%, var(--bg) 60%);
+    color: var(--fg);
+    transition: background 0.3s ease, color 0.3s ease;
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Inter", system-ui, sans-serif;
+    font-weight: 300;
+    letter-spacing: 0.01em;
+    -webkit-font-smoothing: antialiased;
+    overflow: hidden;
+  }
+  body {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    padding: 4rem 6rem;
+  }
+  @keyframes rise {
+    from { opacity: 0; transform: translateY(8px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  .prompt {
+    color: var(--muted);
+    font-size: 1rem;
+    letter-spacing: 0.04em;
+    text-align: center;
+    min-height: 1.4rem;
+    margin-bottom: 0.75rem;
+    max-width: 34rem;
+    line-height: 1.45;
+  }
+  .prompt .accent { color: var(--accent-2); }
+  .target-number {
+    font-size: clamp(3rem, 8vw, 6rem);
+    font-weight: 200;
+    color: var(--fg);
+    letter-spacing: -0.02em;
+    margin-bottom: 0.5rem;
+    font-variant-numeric: tabular-nums;
+    transition: opacity 0.3s ease;
+    animation: rise 0.4s ease both;
+    text-align: center;
+  }
+  .reverse-wrap { margin-bottom: 0.5rem; text-align: center; }
+  .reverse-input {
+    background: transparent;
+    border: none;
+    border-bottom: 2px solid var(--line);
+    color: var(--fg);
+    font-family: inherit;
+    font-weight: 200;
+    font-size: clamp(2.2rem, 6vw, 4rem);
+    text-align: center;
+    width: min(60vw, 18rem);
+    letter-spacing: -0.01em;
+    font-variant-numeric: tabular-nums;
+    padding: 0.1rem 0.3rem;
+    outline: none;
+    transition: border-color 0.2s ease;
+  }
+  .reverse-input:focus { border-bottom-color: var(--accent); }
+  .reverse-input::placeholder { color: var(--muted); opacity: 0.55; font-size: 1.1rem; letter-spacing: 0.1em; text-transform: uppercase; }
+  .range-label {
+    color: var(--muted);
+    font-size: 0.85rem;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    margin-bottom: 4rem;
+  }
+  .range-label .pill { color: var(--accent); opacity: 0.95; }
+  .bar-container {
+    width: 100%;
+    position: relative;
+    padding: 3rem 0;
+    cursor: crosshair;
+  }
+  .bar {
+    width: 100%;
+    height: 2px;
+    background: var(--line);
+    position: relative;
+    border-radius: 2px;
+  }
+  .bar::before, .bar::after {
+    content: '';
+    position: absolute;
+    top: -6px;
+    width: 2px;
+    height: 14px;
+    background: var(--line);
+    border-radius: 1px;
+  }
+  .bar::before { left: 0; }
+  .bar::after { right: 0; }
+  .endpoint-label {
+    position: absolute;
+    top: 1.5rem;
+    color: var(--muted);
+    font-size: 0.85rem;
+    font-variant-numeric: tabular-nums;
+  }
+  .endpoint-label.left { left: 0; }
+  .endpoint-label.right { right: 0; }
+  .marker {
+    position: absolute;
+    top: -10px;
+    width: 2px;
+    height: 22px;
+    transform: translateX(-50%);
+    opacity: 0;
+    transition: opacity 0.3s ease, left 0.35s cubic-bezier(0.22,1,0.36,1);
+    pointer-events: none;
+  }
+  .marker.show { opacity: 1; }
+  .marker.target { background: var(--target); }
+  .marker.guess { background: var(--guess); }
+  .marker-label {
+    position: absolute;
+    top: -2.4rem;
+    left: 50%;
+    transform: translateX(-50%);
+    font-size: 0.75rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    white-space: nowrap;
+    font-variant-numeric: tabular-nums;
+  }
+  .marker.target .marker-label { color: var(--target); }
+  .marker.guess .marker-label { color: var(--guess); top: 1.6rem; }
+  .result {
+    margin-top: 4rem;
+    min-height: 4.5rem;
+    text-align: center;
+    opacity: 0;
+    transition: opacity 0.4s ease;
+  }
+  .result.show { opacity: 1; }
+  .result-grade {
+    font-size: 1.5rem;
+    font-weight: 300;
+    color: var(--accent);
+    letter-spacing: 0.02em;
+    margin-bottom: 0.6rem;
+  }
+  .result-detail {
+    color: var(--muted);
+    font-size: 0.95rem;
+    font-variant-numeric: tabular-nums;
+  }
+  .result-detail .emoji-row {
+    display: block;
+    margin-top: 0.6rem;
+    font-size: 1.1rem;
+    letter-spacing: 0.2em;
+  }
+  .result-detail .streak {
+    display: block;
+    margin-top: 0.5rem;
+    color: var(--accent-2);
+    font-size: 0.85rem;
+    letter-spacing: 0.06em;
+  }
+  .result-detail .countdown {
+    display: block;
+    margin-top: 0.9rem;
+    font-size: 0.8rem;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--accent-2);
+    font-variant-numeric: tabular-nums;
+  }
+  .hint {
+    text-align: center;
+    color: var(--muted);
+    font-size: 0.75rem;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    opacity: 0.6;
+    min-height: 1rem;
+    margin-bottom: 0.9rem;
+    transition: opacity 0.3s ease;
+  }
+  .actions {
+    margin-top: 2rem;
+    min-height: 2.75rem;
+    display: flex;
+    gap: 0.75rem;
+    align-items: center;
+    justify-content: center;
+  }
+  .try-again, .share {
+    display: none;
+    background: transparent;
+    color: var(--fg);
+    border: 1px solid var(--line);
+    padding: 0.75rem 2rem;
+    font-family: inherit;
+    font-size: 0.8rem;
+    font-weight: 300;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    cursor: pointer;
+    border-radius: 2px;
+    opacity: 0;
+    transition:
+      opacity 0.4s ease,
+      border-color 0.2s ease,
+      color 0.2s ease,
+      display 0.4s allow-discrete;
+  }
+  .try-again.show, .share.show { display: inline-block; opacity: 1; }
+  @starting-style {
+    .try-again.show, .share.show { opacity: 0; }
+  }
+  .try-again:hover, .share:hover { border-color: var(--accent); color: var(--accent); }
+  .try-again:focus, .share:focus { outline: none; border-color: var(--accent); color: var(--accent); }
+  .share.copied { border-color: var(--accent); color: var(--accent); }
+  .wordmark {
+    position: fixed;
+    top: 1.5rem;
+    left: 2rem;
+    color: var(--fg);
+    font-size: 0.95rem;
+    font-weight: 300;
+    letter-spacing: 0.15em;
+    text-transform: lowercase;
+    opacity: 0.85;
+    user-select: none;
+    cursor: pointer;
+    background: none;
+    border: none;
+    font-family: inherit;
+    padding: 0;
+    transition: opacity 0.2s ease, color 0.2s ease;
+  }
+  .wordmark:hover { opacity: 1; color: var(--accent); }
+  .wordmark:hover .dot { color: var(--fg); }
+  .wordmark:focus-visible { outline: 1px solid var(--accent); outline-offset: 4px; }
+  .wordmark .dot { color: var(--accent); transition: color 0.2s ease; }
+
+  .toolbar {
+    position: fixed;
+    top: 1.25rem;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    gap: 0.6rem;
+    align-items: center;
+    flex-wrap: wrap;
+    justify-content: center;
+    max-width: 92vw;
+    z-index: 20;
+  }
+  .variant-select {
+    background: var(--bg-soft);
+    color: var(--fg);
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    padding: 0.4rem 1.7rem 0.4rem 0.95rem;
+    font-family: inherit;
+    font-size: 0.7rem;
+    font-weight: 300;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    cursor: pointer;
+    -webkit-appearance: none;
+    appearance: none;
+    background-image: linear-gradient(45deg, transparent 50%, var(--muted) 50%), linear-gradient(135deg, var(--muted) 50%, transparent 50%);
+    background-position: right 0.85rem center, right 0.6rem center;
+    background-size: 5px 5px, 5px 5px;
+    background-repeat: no-repeat;
+  }
+  .variant-select:focus { outline: none; border-color: var(--accent); }
+  .segmented {
+    display: inline-flex;
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    overflow: hidden;
+    background: var(--bg-soft);
+  }
+  .segmented button {
+    background: transparent;
+    color: var(--muted);
+    border: none;
+    padding: 0.4rem 0.95rem;
+    font-family: inherit;
+    font-size: 0.7rem;
+    font-weight: 300;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    cursor: pointer;
+    transition: color 0.2s ease, background 0.2s ease;
+  }
+  .segmented button.active { color: var(--bg); background: var(--accent); }
+  .segmented button:not(.active):hover { color: var(--fg); }
+  .daily-btn {
+    background: transparent;
+    color: var(--muted);
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    padding: 0.4rem 1rem;
+    font-family: inherit;
+    font-size: 0.7rem;
+    font-weight: 300;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    cursor: pointer;
+    transition: color 0.2s ease, border-color 0.2s ease, background 0.2s ease;
+  }
+  .daily-btn:hover { color: var(--fg); border-color: var(--muted); }
+  .daily-btn.active { color: var(--bg); background: var(--accent-2); border-color: var(--accent-2); }
+  .daily-btn.done { color: var(--accent-2); border-color: var(--accent-2); }
+  @keyframes dailyPulse {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(245, 194, 107, 0); }
+    50%      { box-shadow: 0 0 0 4px rgba(245, 194, 107, 0.16); }
+  }
+  .daily-btn.pulse { animation: dailyPulse 2.4s ease-in-out infinite; border-color: var(--accent-2); color: var(--accent-2); }
+  @media (prefers-reduced-motion: reduce) { .daily-btn.pulse { animation: none; } }
+  .toolbar.daily-on .variant-select,
+  .toolbar.daily-on .segmented { opacity: 0.35; pointer-events: none; }
+  .toolbar.no-diff .segmented { display: none; }
+  .icon-btn {
+    background: transparent;
+    color: var(--muted);
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    width: 1.9rem;
+    height: 1.9rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-family: inherit;
+    font-size: 0.85rem;
+    line-height: 1;
+    cursor: pointer;
+    padding: 0;
+    transition: color 0.2s ease, border-color 0.2s ease;
+  }
+  .icon-btn:hover { color: var(--fg); border-color: var(--muted); }
+
+  .credit {
+    position: fixed;
+    bottom: 1.25rem;
+    left: 50%;
+    transform: translateX(-50%);
+    text-align: center;
+    color: var(--muted);
+    font-size: 0.7rem;
+    letter-spacing: 0.08em;
+    opacity: 0.7;
+  }
+  .credit a {
+    color: var(--fg);
+    text-decoration: none;
+    opacity: 0.85;
+    border-bottom: 1px solid transparent;
+    transition: color 0.2s ease, border-color 0.2s ease;
+  }
+  .credit a:hover { color: var(--accent); border-bottom-color: var(--accent); }
+  .notice-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(12, 13, 17, 0.92);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    z-index: 100;
+    padding: 1.5rem;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+  }
+  :root[data-theme="light"] .notice-overlay { background: rgba(245, 244, 239, 0.92); }
+  .notice-overlay.show { display: flex; opacity: 1; }
+  .notice-card { max-width: 23rem; text-align: center; color: var(--fg); }
+  .notice-card h2 {
+    font-size: 1.1rem;
+    font-weight: 300;
+    letter-spacing: 0.15em;
+    text-transform: lowercase;
+    color: var(--accent);
+    margin: 0 0 1.25rem;
+  }
+  .notice-card p {
+    font-size: 0.95rem;
+    line-height: 1.6;
+    color: var(--muted);
+    margin: 0 0 2rem;
+    text-align: left;
+  }
+  .notice-card p b { color: var(--fg); font-weight: 500; }
+  .notice-card button {
+    background: transparent;
+    color: var(--fg);
+    border: 1px solid var(--accent);
+    padding: 0.75rem 2.5rem;
+    font-family: inherit;
+    font-size: 0.8rem;
+    font-weight: 300;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    cursor: pointer;
+    border-radius: 2px;
+  }
+  .stats {
+    position: fixed;
+    top: 1.5rem;
+    right: 2rem;
+    text-align: right;
+    color: var(--muted);
+    font-size: 0.75rem;
+    letter-spacing: 0.05em;
+    line-height: 1.7;
+    font-variant-numeric: tabular-nums;
+  }
+  .stats .label { text-transform: uppercase; letter-spacing: 0.12em; opacity: 0.7; margin-right: 0.4rem; }
+  .stats .value { color: var(--fg); opacity: 0.9; }
+  .stats .reset {
+    margin-top: 0.6rem;
+    background: none;
+    border: none;
+    color: var(--muted);
+    font-family: inherit;
+    font-size: 0.7rem;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    cursor: pointer;
+    padding: 0;
+    opacity: 0.5;
+    transition: opacity 0.2s ease, color 0.2s ease;
+  }
+  .stats .reset:hover { opacity: 1; color: var(--accent); }
+
+  @media (max-width: 600px) {
+    body { padding: 8.5rem 1.5rem 4rem; }
+    .wordmark { top: 1.1rem; left: 1.25rem; font-size: 0.85rem; }
+    .toolbar { top: 4.6rem; gap: 0.4rem; }
+    .variant-select { padding: 0.35rem 1.5rem 0.35rem 0.7rem; font-size: 0.65rem; }
+    .segmented button { padding: 0.35rem 0.7rem; font-size: 0.65rem; }
+    .daily-btn { padding: 0.35rem 0.8rem; font-size: 0.65rem; }
+    .stats { top: 1.1rem; right: 1.25rem; font-size: 0.65rem; line-height: 1.5; }
+    .stats .reset { font-size: 0.6rem; margin-top: 0.4rem; }
+    .prompt { font-size: 0.9rem; }
+    .target-number { margin-top: 0.5rem; }
+    .range-label { margin-bottom: 2.5rem; }
+    .result { margin-top: 2.5rem; }
+    .actions { flex-wrap: wrap; }
+  }
+</style>
+</head>
+<body>
+  <div class="notice-overlay" id="noticeOverlay">
+    <div class="notice-card">
+      <h2>heads up</h2>
+      <p style="text-align:center">ballpark is built for precision clicking with a mouse or trackpad. you can play on touch, but finger taps aren't accurate enough to really compete.</p>
+      <button id="noticeDismiss" type="button">got it</button>
+    </div>
+  </div>
+
+  <div class="notice-overlay" id="helpOverlay">
+    <div class="notice-card">
+      <h2>how to play</h2>
+      <p>
+        a number appears above a line. click the spot on the line where you think
+        that number lands. closer is better &mdash; your score is how far off you
+        were, as a % of the range. chase <b>perfect</b>, keep a streak going.
+        <br><br>
+        <b>easy / normal / hard</b> change the range and how strict the grading is.
+        <br>
+        <b>daily</b> &mdash; 5 fixed rounds, same for everyone each day. share it,
+        build a day streak.
+        <br>
+        <b>invert</b> &mdash; classic, but the scale is flipped: max on the left, 0 on the right.
+        <br>
+        <b>world</b> &mdash; place a real-world fact (moon distance, Everest height...).
+        <br>
+        <b>reverse</b> &mdash; the marker is shown; you type the number.
+        <br>
+        <b>survival</b> &mdash; one miss ends the run. how long can you last?
+      </p>
+      <button id="helpDismiss" type="button">got it</button>
+    </div>
+  </div>
+
+  <button class="wordmark" id="wordmark" type="button" title="back to start">ballpark<span class="dot">.</span></button>
+
+  <div class="toolbar" id="toolbar">
+    <select class="variant-select" id="variantSelect" aria-label="game mode">
+      <option value="world">world</option>
+      <option value="classic">classic</option>
+      <option value="invert">invert</option>
+      <option value="reverse">reverse</option>
+      <option value="survival">survival</option>
+    </select>
+    <div class="segmented" id="modeSeg">
+      <button type="button" data-mode="easy">easy</button>
+      <button type="button" data-mode="normal" class="active">normal</button>
+      <button type="button" data-mode="hard">hard</button>
+    </div>
+    <button class="daily-btn" id="dailyBtn" type="button">daily</button>
+    <button class="icon-btn" id="helpBtn" type="button" title="how to play" aria-label="how to play">?</button>
+    <button class="icon-btn" id="themeBtn" type="button" title="toggle light / dark" aria-label="toggle theme">◐</button>
+  </div>
+
+  <div class="stats" id="stats">
+    <div><span class="label">best</span><span class="value" id="statBest">—</span></div>
+    <div><span class="label">avg</span><span class="value" id="statAvg">—</span></div>
+    <div><span class="label">streak</span><span class="value" id="statStreak">0</span></div>
+    <div><span class="label">rounds</span><span class="value" id="statRounds">0</span></div>
+    <button class="reset" id="statReset" type="button">reset</button>
+  </div>
+
+  <div class="prompt" id="prompt">place this number</div>
+  <div class="target-number" id="targetNumber">—</div>
+  <div class="reverse-wrap" id="reverseWrap" style="display:none">
+    <input id="reverseInput" class="reverse-input" type="text" inputmode="numeric" autocomplete="off" placeholder="type the number" />
+  </div>
+  <div class="range-label" id="rangeLabel">range</div>
+
+  <div class="hint" id="hint">click the line</div>
+
+  <div class="bar-container" id="barContainer">
+    <div class="bar" id="bar">
+      <div class="marker target" id="targetMarker">
+        <span class="marker-label" id="targetMarkerLabel">target</span>
+      </div>
+      <div class="marker guess" id="guessMarker">
+        <span class="marker-label">you</span>
+      </div>
+    </div>
+    <span class="endpoint-label left" id="leftLabel">0</span>
+    <span class="endpoint-label right" id="rightLabel">n</span>
+  </div>
+
+  <div class="result" id="result">
+    <div class="result-grade" id="resultGrade"></div>
+    <div class="result-detail" id="resultDetail"></div>
+  </div>
+
+  <div class="actions">
+    <button class="try-again" id="tryAgain" type="button">try again</button>
+    <button class="share" id="share" type="button">share</button>
+  </div>
+
+  <div class="credit">built by <a href="https://farcaster.xyz/kazani" target="_blank" rel="noopener">kazani</a></div>
+
+<script>
+  const els = {
+    prompt:       document.getElementById('prompt'),
+    targetNumber: document.getElementById('targetNumber'),
+    reverseWrap:  document.getElementById('reverseWrap'),
+    reverseInput: document.getElementById('reverseInput'),
+    rangeLabel:   document.getElementById('rangeLabel'),
+    leftLabel:    document.getElementById('leftLabel'),
+    rightLabel:   document.getElementById('rightLabel'),
+    bar:          document.getElementById('bar'),
+    barContainer: document.getElementById('barContainer'),
+    targetMarker: document.getElementById('targetMarker'),
+    targetMarkerLabel: document.getElementById('targetMarkerLabel'),
+    guessMarker:  document.getElementById('guessMarker'),
+    result:       document.getElementById('result'),
+    resultGrade:  document.getElementById('resultGrade'),
+    resultDetail: document.getElementById('resultDetail'),
+    tryAgain:     document.getElementById('tryAgain'),
+    share:        document.getElementById('share'),
+    hint:         document.getElementById('hint'),
+    statBest:     document.getElementById('statBest'),
+    statAvg:      document.getElementById('statAvg'),
+    statStreak:   document.getElementById('statStreak'),
+    statRounds:   document.getElementById('statRounds'),
+    statReset:    document.getElementById('statReset'),
+    stats:        document.getElementById('stats'),
+    toolbar:      document.getElementById('toolbar'),
+    modeSeg:      document.getElementById('modeSeg'),
+    dailyBtn:     document.getElementById('dailyBtn'),
+    variantSelect:document.getElementById('variantSelect'),
+    themeBtn:     document.getElementById('themeBtn'),
+  };
+
+  // --- ship-guard: turn any load-time failure into a LOUD visible banner ------
+  // (catches the "referenced element that doesn't exist" bug class instead of
+  //  silently rendering a dead page).
+  function shipBanner(msg) {
+    let b = document.getElementById('__ballparkErr');
+    if (!b) {
+      b = document.createElement('div');
+      b.id = '__ballparkErr';
+      b.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:99999;background:#b00020;color:#fff;font:13px/1.45 ui-monospace,monospace;padding:8px 12px;white-space:pre-wrap';
+      document.body.appendChild(b);
+    }
+    b.textContent = 'ballpark error — ' + msg;
+  }
+  // The broad uncaught-error catch is dev-only (it would over-trigger on benign
+  // cross-origin "Script error." events for real users). The els-integrity and
+  // smoke checks below are deterministic, so they banner for everyone.
+  const DEBUG = /[?&](debug|smoke)\b/.test(location.search)
+    || ['localhost', '127.0.0.1', ''].includes(location.hostname);
+  if (DEBUG) window.addEventListener('error', (e) => shipBanner((e.error && e.error.message) || e.message || 'script error'));
+  const __missingEls = Object.entries(els).filter(([, v]) => !v).map(([k]) => k);
+  if (__missingEls.length) shipBanner('missing elements: ' + __missingEls.join(', '));
+
+  // ---- difficulty modes -------------------------------------------------
+  const MODES = {
+    easy:   { kMin: 1.0, kMax: 2.5, grades: [0.40, 1.5, 4, 10], miss: 10 },
+    normal: { kMin: 1.5, kMax: 6.0, grades: [0.25, 1.0, 3, 8],  miss: 8  },
+    hard:   { kMin: 4.0, kMax: 8.0, grades: [0.15, 0.6, 2, 5],  miss: 5  },
+  };
+  let currentMode = 'normal';
+  try { const m = localStorage.getItem('ballpark.mode.v1'); if (m && MODES[m]) currentMode = m; } catch {}
+
+  function grade(pctOff, mode) {
+    const g = MODES[mode].grades;
+    if (pctOff < g[0]) return 'perfect';
+    if (pctOff < g[1]) return 'great';
+    if (pctOff < g[2]) return 'close';
+    if (pctOff < g[3]) return 'okay';
+    return 'miss';
+  }
+
+  // ---- variant ----------------------------------------------------------
+  const VARIANTS = ['classic', 'invert', 'world', 'reverse', 'survival'];
+  // First-time visitors land on `world` (the front-door mode); returning players
+  // keep their last choice.
+  let variant = 'world';
+  try { const v = localStorage.getItem('ballpark.variant.v1'); if (VARIANTS.includes(v)) variant = v; } catch {}
+
+  // World facts: place a real value on a labelled range, then reveal.
+  const WORLD = [
+    // space + physics
+    { q: 'Distance from Earth to the Moon', unit: 'km', min: 0, max: 1000000, ans: 384400 },
+    { q: 'Speed of light', unit: 'km/s', min: 0, max: 500000, ans: 299792 },
+    { q: "Earth's circumference", unit: 'km', min: 0, max: 60000, ans: 40075 },
+    { q: 'Distance from Earth to the Sun', unit: 'million km', min: 0, max: 300, ans: 150 },
+    { q: "Earth's diameter", unit: 'km', min: 0, max: 20000, ans: 12742 },
+    { q: "Surface temperature of the Sun", unit: '°C', min: 0, max: 10000, ans: 5500 },
+    // geography + landmarks
+    { q: 'Height of Mount Everest', unit: 'm', min: 0, max: 12000, ans: 8849 },
+    { q: 'Depth of the Mariana Trench', unit: 'm', min: 0, max: 12000, ans: 10935 },
+    { q: 'Length of the Great Wall of China', unit: 'km', min: 0, max: 30000, ans: 21196 },
+    { q: 'Length of the Nile', unit: 'km', min: 0, max: 10000, ans: 6650 },
+    { q: 'Length of the Amazon River', unit: 'km', min: 0, max: 10000, ans: 6400 },
+    { q: 'Height of the Eiffel Tower', unit: 'm', min: 0, max: 500, ans: 330 },
+    { q: 'Height of the Burj Khalifa', unit: 'm', min: 0, max: 1000, ans: 828 },
+    { q: 'UN member countries', unit: '', min: 0, max: 300, ans: 193 },
+    // history (years)
+    { q: 'Year Gutenberg printed his press', unit: '', min: 1300, max: 1600, ans: 1440, year: true },
+    { q: 'Year the first iPhone launched', unit: '', min: 1990, max: 2020, ans: 2007, year: true },
+    { q: 'Year Wikipedia launched', unit: '', min: 1990, max: 2010, ans: 2001, year: true },
+    { q: 'Year of the first Moon landing', unit: '', min: 1900, max: 2000, ans: 1969, year: true },
+    { q: 'Year World War II ended', unit: '', min: 1900, max: 2000, ans: 1945, year: true },
+    { q: 'Year the Berlin Wall fell', unit: '', min: 1950, max: 2000, ans: 1989, year: true },
+    { q: 'Year the French Revolution began', unit: '', min: 1700, max: 1850, ans: 1789, year: true },
+    { q: 'Year the Titanic sank', unit: '', min: 1850, max: 1950, ans: 1912, year: true },
+    // body + health
+    { q: 'Bones in the adult human body', unit: '', min: 0, max: 500, ans: 206 },
+    { q: 'Teeth in an adult human', unit: '', min: 0, max: 100, ans: 32 },
+    { q: 'Human chromosomes', unit: '', min: 0, max: 100, ans: 46 },
+    { q: 'Ribs in the human body', unit: '', min: 0, max: 60, ans: 24 },
+    // everyday + games
+    { q: 'Keys on a standard piano', unit: '', min: 0, max: 150, ans: 88 },
+    { q: 'Squares on a chessboard', unit: '', min: 0, max: 100, ans: 64 },
+    { q: 'Players on a soccer team (per side)', unit: '', min: 0, max: 30, ans: 11 },
+    { q: 'Bytes in a kilobyte', unit: '', min: 0, max: 2000, ans: 1024 },
+    // people + money
+    { q: 'Population of Japan', unit: 'million', min: 0, max: 300, ans: 125 },
+    { q: 'Population of the United States', unit: 'million', min: 0, max: 500, ans: 340 },
+    { q: 'World population', unit: 'billion', min: 0, max: 12, ans: 8 },
+    // nature
+    { q: 'Elephant gestation', unit: 'months', min: 0, max: 30, ans: 22 },
+    { q: 'Top speed of a cheetah', unit: 'km/h', min: 0, max: 150, ans: 112 },
+    { q: 'Hearts in an octopus', unit: '', min: 0, max: 10, ans: 3 },
+  ];
+  // Shuffle-bag: cycle through every fact before any repeats.
+  let worldBag = [], worldLast = -1;
+  function nextWorldIndex() {
+    if (worldBag.length === 0) {
+      worldBag = WORLD.map((_, i) => i);
+      for (let i = worldBag.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [worldBag[i], worldBag[j]] = [worldBag[j], worldBag[i]];
+      }
+      // avoid a repeat across the refill seam
+      if (worldBag.length > 1 && worldBag[worldBag.length - 1] === worldLast) {
+        [worldBag[0], worldBag[worldBag.length - 1]] = [worldBag[worldBag.length - 1], worldBag[0]];
+      }
+    }
+    worldLast = worldBag.pop();
+    return worldLast;
+  }
+
+  // ---- seeded PRNG (daily) ----------------------------------------------
+  function mulberry32(seed) {
+    let a = seed >>> 0;
+    return function () {
+      a |= 0; a = (a + 0x6D2B79F5) | 0;
+      let t = Math.imul(a ^ (a >>> 15), 1 | a);
+      t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+  }
+  function hashStr(str) {
+    let h = 2166136261 >>> 0;
+    for (let i = 0; i < str.length; i++) { h ^= str.charCodeAt(i); h = Math.imul(h, 16777619); }
+    return h >>> 0;
+  }
+  // Local calendar day (so the daily and its countdown line up with the player's clock).
+  function dayKey(d) {
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  }
+  function todayLocal() { return dayKey(new Date()); }
+
+  function niceRound(x) {
+    if (x < 100)    return Math.round(x / 10) * 10;
+    if (x < 1000)   return Math.round(x / 50) * 50;
+    if (x < 10000)  return Math.round(x / 100) * 100;
+    if (x < 100000) return Math.round(x / 500) * 500;
+    return Math.round(x / 1000) * 1000;
+  }
+  function pickN(mode, rnd) {
+    const cfg = MODES[mode];
+    const barWidthPx = els.bar.getBoundingClientRect().width;
+    const k = cfg.kMin + rnd() * (cfg.kMax - cfg.kMin);
+    return niceRound(barWidthPx * k);
+  }
+  const DAILY_BASE = 900;
+  function pickNFixed(mode, rnd) {
+    const cfg = MODES[mode];
+    const k = cfg.kMin + rnd() * (cfg.kMax - cfg.kMin);
+    return niceRound(DAILY_BASE * k);
+  }
+
+  function fmt(v, isYear) {
+    return isYear ? String(v) : Math.round(v).toLocaleString();
+  }
+
+  // ---- per-mode stats ---------------------------------------------------
+  // Estimation variants each keep their own best/avg/streak/rounds. World has
+  // no difficulty (range comes from the fact), so it uses one shared key.
+  const STAT_VARIANTS = ['classic', 'invert', 'world', 'reverse'];
+  function statsKey() {
+    return variant === 'world'
+      ? 'ballpark.stats.v1.world'
+      : `ballpark.stats.v1.${variant}.${currentMode}`;
+  }
+  function loadStats() {
+    try {
+      const raw = localStorage.getItem(statsKey());
+      if (!raw) return { best: null, sumPct: 0, rounds: 0, streak: 0 };
+      const s = JSON.parse(raw);
+      return {
+        best:   typeof s.best === 'number' ? s.best : null,
+        sumPct: s.sumPct || 0, rounds: s.rounds || 0, streak: s.streak || 0,
+      };
+    } catch { return { best: null, sumPct: 0, rounds: 0, streak: 0 }; }
+  }
+  function saveStats(s) {
+    try { localStorage.setItem(statsKey(), JSON.stringify(s)); } catch {}
+  }
+  function renderStats(s) {
+    els.statBest.textContent   = s.best === null ? '—' : `${s.best.toFixed(2)}%`;
+    els.statAvg.textContent    = s.rounds === 0 ? '—' : `${(s.sumPct / s.rounds).toFixed(2)}%`;
+    els.statStreak.textContent = s.streak;
+    els.statRounds.textContent = s.rounds;
+  }
+  function missThresh() { return variant === 'world' ? MODES.normal.miss : MODES[currentMode].miss; }
+  function recordStat(pctOff) {
+    stats.rounds += 1;
+    stats.sumPct += pctOff;
+    stats.best = stats.best === null ? pctOff : Math.min(stats.best, pctOff);
+    stats.streak = pctOff < missThresh() ? stats.streak + 1 : 0;
+    saveStats(stats);
+    renderStats(stats);
+  }
+  let stats = loadStats();
+  renderStats(stats);
+
+  // ---- theme ------------------------------------------------------------
+  const THEME_KEY = 'ballpark.theme.v1';
+  function updateThemeColor() {
+    const c = getComputedStyle(document.documentElement).getPropertyValue('--bg').trim();
+    const meta = document.querySelector('meta[name="theme-color"]');
+    if (meta && c) meta.setAttribute('content', c);
+  }
+  function applyTheme(t) {
+    if (t === 'light') document.documentElement.setAttribute('data-theme', 'light');
+    else document.documentElement.removeAttribute('data-theme');
+    updateThemeColor();
+  }
+  let theme = 'dark';
+  try { const t = localStorage.getItem(THEME_KEY); if (t === 'light' || t === 'dark') theme = t; } catch {}
+  applyTheme(theme);
+  els.variantSelect.value = variant;
+
+  // ---- help + mobile notice ---------------------------------------------
+  (() => {
+    const overlay = document.getElementById('helpOverlay');
+    document.getElementById('helpBtn').addEventListener('click', () => overlay.classList.add('show'));
+    document.getElementById('helpDismiss').addEventListener('click', () => overlay.classList.remove('show'));
+    overlay.addEventListener('click', (e) => { if (e.target === overlay) overlay.classList.remove('show'); });
+  })();
+  const IS_TOUCH = window.matchMedia('(pointer: coarse)').matches;
+  const NOTICE_KEY = 'ballpark.notice.dismissed.v1';
+  if (IS_TOUCH) {
+    let dismissed = false;
+    try { dismissed = localStorage.getItem(NOTICE_KEY) === '1'; } catch {}
+    if (!dismissed) {
+      const overlay = document.getElementById('noticeOverlay');
+      overlay.classList.add('show');
+      const close = () => { overlay.classList.remove('show'); try { localStorage.setItem(NOTICE_KEY, '1'); } catch {} };
+      document.getElementById('noticeDismiss').addEventListener('click', close);
+      overlay.addEventListener('click', (e) => { if (e.target === overlay) close(); });
+    }
+  }
+
+  // ---- game state -------------------------------------------------------
+  let state = {
+    min: 0, max: 0, answer: 0, isYear: false,
+    awaitingClick: true, lastPctOff: null,
+    daily: false, variant: 'classic', world: null, reverseRatio: null, invert: false,
+  };
+  let survival = { count: 0, over: false };
+
+  function setStatsVisible(v) { els.stats.style.visibility = v ? 'visible' : 'hidden'; }
+
+  function effMode() { return state.daily ? 'normal' : currentMode; }
+
+  // ---- daily ------------------------------------------------------------
+  const DAILY_ROUNDS = 5;
+  const DAILY_KEY = 'ballpark.daily.v1';
+  const DAILY_MODE = 'normal';
+  const DSTREAK_KEY = 'ballpark.dailystreak.v1';
+  let daily = { active: false, date: null, rounds: [], index: 0, results: [] };
+
+  function buildDailyRounds(dateStr) {
+    const rnd = mulberry32(hashStr('ballpark|' + dateStr));
+    const rounds = [];
+    for (let i = 0; i < DAILY_ROUNDS; i++) {
+      const n = pickNFixed(DAILY_MODE, rnd);
+      const target = Math.floor(rnd() * (n + 1));
+      rounds.push({ n, target });
+    }
+    return rounds;
+  }
+  function loadDailySave() {
+    try { const raw = localStorage.getItem(DAILY_KEY); if (!raw) return null; const s = JSON.parse(raw); return (s && typeof s.date === 'string') ? s : null; } catch { return null; }
+  }
+  function saveDaily() {
+    try { localStorage.setItem(DAILY_KEY, JSON.stringify({ date: daily.date, index: daily.index, results: daily.results })); } catch {}
+  }
+  function dailyDoneToday() {
+    const s = loadDailySave();
+    return !!(s && s.date === todayLocal() && (s.index || 0) >= DAILY_ROUNDS);
+  }
+  function refreshDailyBadge() {
+    if (daily.active) return;
+    if (dailyDoneToday()) {
+      els.dailyBtn.textContent = 'daily ✓';
+      els.dailyBtn.classList.add('done');
+      els.dailyBtn.classList.remove('pulse');
+    } else {
+      els.dailyBtn.textContent = 'daily';
+      els.dailyBtn.classList.remove('done');
+      els.dailyBtn.classList.add('pulse'); // front-door nudge until played today
+    }
+  }
+  function bumpDailyStreak(dateStr) {
+    let s = { date: null, streak: 0, best: 0 };
+    try { const r = localStorage.getItem(DSTREAK_KEY); if (r) s = JSON.parse(r); } catch {}
+    if (s.date === dateStr) return s; // already counted today
+    const d = new Date(dateStr + 'T00:00:00');
+    const prev = dayKey(new Date(d.getFullYear(), d.getMonth(), d.getDate() - 1));
+    s.streak = (s.date === prev) ? (s.streak || 0) + 1 : 1;
+    s.best = Math.max(s.best || 0, s.streak);
+    s.date = dateStr;
+    try { localStorage.setItem(DSTREAK_KEY, JSON.stringify(s)); } catch {}
+    return s;
+  }
+
+  function gradeEmoji(g) {
+    if (g === 'perfect' || g === 'great') return '🎯';
+    if (g === 'close' || g === 'okay')    return '🟡';
+    return '⬜';
+  }
+
+  // ---- countdown to next local day --------------------------------------
+  let dailyTimer = null;
+  function msToNextLocalDay() {
+    const n = new Date();
+    const next = new Date(n.getFullYear(), n.getMonth(), n.getDate() + 1, 0, 0, 0, 0);
+    return Math.max(0, next - n.getTime());
+  }
+  function fmtHMS(ms) {
+    const s = Math.floor(ms / 1000);
+    const h = String(Math.floor(s / 3600)).padStart(2, '0');
+    const m = String(Math.floor((s % 3600) / 60)).padStart(2, '0');
+    const sec = String(s % 60).padStart(2, '0');
+    return `${h}:${m}:${sec}`;
+  }
+  function stopDailyTimer() { if (dailyTimer) { clearInterval(dailyTimer); dailyTimer = null; } }
+  function startDailyCountdown() {
+    stopDailyTimer();
+    const el = document.getElementById('dailyCountdown');
+    if (!el) return;
+    const tick = () => {
+      const ms = msToNextLocalDay();
+      el.textContent = `next daily in ${fmtHMS(ms)}`;
+      if (ms <= 0) { stopDailyTimer(); refreshDailyBadge(); }
+    };
+    tick();
+    dailyTimer = setInterval(tick, 1000);
+  }
+
+  // ---- shared round setup -----------------------------------------------
+  function setupRange(min, max, answer, isYear) {
+    state.min = min; state.max = max; state.answer = answer; state.isYear = !!isYear;
+    els.leftLabel.textContent = fmt(min, isYear);
+    els.rightLabel.textContent = fmt(max, isYear);
+  }
+  function resetRoundUI() {
+    els.targetMarker.classList.remove('show');
+    els.guessMarker.classList.remove('show');
+    els.result.classList.remove('show');
+    els.tryAgain.classList.remove('show');
+    els.share.classList.remove('show', 'copied');
+    els.share.textContent = 'share';
+    state.lastPctOff = null;
+    els.hint.textContent = (variant === 'reverse' && !state.daily) ? 'type the number, then enter' : 'click the line';
+    els.hint.style.opacity = '0.6';
+    els.targetNumber.style.animation = 'none';
+    void els.targetNumber.offsetWidth;
+    els.targetNumber.style.animation = '';
+  }
+  function showNumberMode() { els.targetNumber.style.display = ''; els.reverseWrap.style.display = 'none'; }
+  function showReverseInput() { els.targetNumber.style.display = 'none'; els.reverseWrap.style.display = ''; }
+
+  // ---- new round (dispatch by variant) ----------------------------------
+  function newRound() {
+    stopDailyTimer();
+    state.daily = false;
+    state.invert = false;
+    state.variant = variant;
+    els.toolbar.classList.toggle('no-diff', variant === 'world');
+    setStatsVisible(STAT_VARIANTS.includes(variant));
+    stats = loadStats();
+    renderStats(stats);
+    refreshDailyBadge();
+    if (variant === 'world') return newWorldRound();
+    if (variant === 'reverse') return newReverseRound();
+    if (variant === 'invert') return newInvertRound();
+    return newClassicRound(); // classic + survival
+  }
+
+  function newInvertRound() {
+    showNumberMode();
+    state.invert = true;
+    const rnd = Math.random;
+    const n = pickN(currentMode, rnd);
+    const target = Math.floor(rnd() * (n + 1));
+    setupRange(0, n, target, false);
+    // flip the visible axis: max on the left, 0 on the right
+    els.leftLabel.textContent = fmt(n);
+    els.rightLabel.textContent = fmt(0);
+    state.awaitingClick = true;
+    els.targetMarkerLabel.textContent = 'target';
+    els.targetNumber.textContent = fmt(target);
+    els.prompt.innerHTML = `place this number · <span class="accent">scale flipped</span>`;
+    els.rangeLabel.innerHTML = `<span class="pill">${fmt(n)}</span> to 0`;
+    els.tryAgain.textContent = 'try again';
+    resetRoundUI();
+  }
+
+  function newClassicRound() {
+    showNumberMode();
+    state.invert = false;
+    const rnd = Math.random;
+    const n = pickN(currentMode, rnd);
+    const target = Math.floor(rnd() * (n + 1));
+    setupRange(0, n, target, false);
+    state.awaitingClick = true;
+    els.targetMarkerLabel.textContent = 'target';
+    els.targetNumber.textContent = fmt(target);
+    els.rangeLabel.innerHTML = `0 to <span class="pill">${fmt(n)}</span>`;
+    if (variant === 'survival') {
+      if (survival.over) { survival.count = 0; survival.over = false; }
+      els.prompt.innerHTML = `survival · <span class="accent">${survival.count} survived</span>`;
+      els.tryAgain.textContent = 'next';
+    } else {
+      els.prompt.textContent = 'place this number';
+      els.tryAgain.textContent = 'try again';
+    }
+    resetRoundUI();
+  }
+
+  function newWorldRound() {
+    showNumberMode();
+    const w = WORLD[nextWorldIndex()];
+    state.world = w;
+    setupRange(w.min, w.max, w.ans, w.year);
+    state.awaitingClick = true;
+    els.targetMarkerLabel.textContent = 'answer';
+    els.targetNumber.textContent = '?';
+    els.prompt.innerHTML = `${w.q}${w.unit ? ` <span class="accent">(${w.unit})</span>` : ''}`;
+    els.rangeLabel.innerHTML = `${fmt(w.min, w.year)} to <span class="pill">${fmt(w.max, w.year)}</span>`;
+    els.tryAgain.textContent = 'next';
+    resetRoundUI();
+  }
+
+  function newReverseRound() {
+    showReverseInput();
+    const n = pickN(currentMode, Math.random);
+    const ratio = Math.random();
+    const answer = Math.round(ratio * n);
+    setupRange(0, n, answer, false);
+    state.reverseRatio = ratio;
+    state.awaitingClick = true;
+    els.prompt.textContent = 'what number is the marker?';
+    els.rangeLabel.innerHTML = `0 to <span class="pill">${fmt(n)}</span>`;
+    els.targetMarkerLabel.textContent = 'marker';
+    els.targetMarker.style.left = `${ratio * 100}%`;
+    resetRoundUI();
+    els.targetMarker.classList.add('show');
+    els.reverseInput.value = '';
+    setTimeout(() => els.reverseInput.focus(), 30);
+  }
+
+  // ---- daily run --------------------------------------------------------
+  function enterDaily() {
+    const today = todayLocal();
+    const saved = loadDailySave();
+    daily.active = true;
+    daily.date = today;
+    daily.rounds = buildDailyRounds(today);
+    if (saved && saved.date === today) {
+      daily.index = Math.min(saved.index || 0, DAILY_ROUNDS);
+      daily.results = Array.isArray(saved.results) ? saved.results.slice(0, DAILY_ROUNDS) : [];
+    } else { daily.index = 0; daily.results = []; }
+    els.toolbar.classList.add('daily-on');
+    els.toolbar.classList.remove('no-diff');
+    els.dailyBtn.classList.add('active');
+    els.dailyBtn.classList.remove('pulse');
+    els.dailyBtn.textContent = 'exit daily';
+    setStatsVisible(false);
+    showNumberMode();
+    if (daily.index >= DAILY_ROUNDS) showDailySummary();
+    else loadDailyRound();
+  }
+  function loadDailyRound() {
+    stopDailyTimer();
+    showNumberMode();
+    const r = daily.rounds[daily.index];
+    state.daily = true;
+    state.invert = false;
+    setupRange(0, r.n, r.target, false);
+    state.awaitingClick = true;
+    els.targetMarkerLabel.textContent = 'target';
+    els.targetNumber.textContent = fmt(r.target);
+    els.prompt.innerHTML = `daily · <span class="accent">round ${daily.index + 1}/${DAILY_ROUNDS}</span>`;
+    els.rangeLabel.innerHTML = `0 to <span class="pill">${fmt(r.n)}</span>`;
+    resetRoundUI();
+  }
+  function showDailySummary() {
+    state.daily = true;
+    state.awaitingClick = false;
+    const avg = daily.results.reduce((a, r) => a + r.pctOff, 0) / (daily.results.length || 1);
+    const emojis = daily.results.map(r => gradeEmoji(r.grade)).join('');
+    const ds = bumpDailyStreak(daily.date);
+    els.targetNumber.textContent = '✓';
+    els.prompt.innerHTML = `daily · <span class="accent">${daily.date}</span>`;
+    els.rangeLabel.innerHTML = '&nbsp;';
+    els.targetMarker.classList.remove('show');
+    els.guessMarker.classList.remove('show');
+    els.resultGrade.textContent = 'daily complete';
+    els.resultDetail.innerHTML =
+      `avg ${avg.toFixed(2)}% off<span class="emoji-row">${emojis}</span>` +
+      `<span class="streak">🔥 ${ds.streak} day streak${ds.best > ds.streak ? ` · best ${ds.best}` : ''}</span>` +
+      `<span class="countdown" id="dailyCountdown"></span>`;
+    els.result.classList.add('show');
+    els.hint.style.opacity = '0';
+    els.tryAgain.textContent = 'free play';
+    els.tryAgain.classList.add('show');
+    els.share.classList.add('show');
+    state.lastPctOff = avg;
+    startDailyCountdown();
+  }
+  function exitDaily() {
+    stopDailyTimer();
+    daily.active = false;
+    state.daily = false;
+    els.toolbar.classList.remove('daily-on');
+    els.dailyBtn.classList.remove('active');
+    refreshDailyBadge();
+    newRound();
+  }
+
+  // ---- click (classic / world / survival / daily) -----------------------
+  function handleClick(e) {
+    if (!state.awaitingClick) return;
+    if (variant === 'reverse' && !state.daily) return; // reverse uses the input, not the line
+
+    const rect = els.bar.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const ratio = Math.max(0, Math.min(1, x / rect.width));
+    const range = state.max - state.min;
+    const posRatio = state.invert ? (1 - ratio) : ratio; // flipped axis maps right→left
+    const value = Math.round(state.min + posRatio * range);
+    const diff = Math.abs(value - state.answer);
+    const pctOff = (diff / range) * 100;
+    let answerRatio = (state.answer - state.min) / range;
+    if (state.invert) answerRatio = 1 - answerRatio;
+    const g = grade(pctOff, effMode());
+
+    els.guessMarker.style.left = `${ratio * 100}%`;
+    els.targetMarker.style.left = `${answerRatio * 100}%`;
+    els.guessMarker.classList.add('show');
+    els.targetMarker.classList.add('show');
+    els.resultGrade.textContent = g;
+    els.hint.style.opacity = '0';
+    state.lastPctOff = pctOff;
+    state.awaitingClick = false;
+
+    if (state.daily) {
+      els.resultDetail.textContent =
+        `you picked ${fmt(value)} · off by ${fmt(diff)} (${pctOff.toFixed(2)}%)`;
+      els.result.classList.add('show');
+      daily.results[daily.index] = { pctOff, grade: g };
+      daily.index += 1;
+      saveDaily();
+      els.tryAgain.textContent = daily.index >= DAILY_ROUNDS ? 'see result' : 'next';
+      els.tryAgain.classList.add('show');
+      els.share.classList.remove('show');
+      return;
+    }
+
+    if (variant === 'world') {
+      const w = state.world;
+      els.targetNumber.textContent = fmt(w.ans, w.year);
+      els.resultDetail.textContent =
+        `answer ${fmt(w.ans, w.year)}${w.unit ? ' ' + w.unit : ''} · you said ${fmt(value, w.year)} · off ${pctOff.toFixed(2)}%`;
+      els.result.classList.add('show');
+      recordStat(pctOff);
+      els.tryAgain.textContent = 'next';
+      els.tryAgain.classList.add('show');
+      els.share.classList.remove('show');
+      return;
+    }
+
+    if (variant === 'survival') {
+      const survived = pctOff < MODES[currentMode].miss;
+      els.result.classList.add('show');
+      if (survived) {
+        survival.count += 1;
+        els.resultDetail.textContent =
+          `you picked ${fmt(value)} · off ${pctOff.toFixed(2)}% · ${survival.count} survived`;
+        els.tryAgain.textContent = 'next';
+      } else {
+        survival.over = true;
+        let best = 0;
+        try { best = parseInt(localStorage.getItem('ballpark.survival.v1') || '0', 10) || 0; } catch {}
+        best = Math.max(best, survival.count);
+        try { localStorage.setItem('ballpark.survival.v1', String(best)); } catch {}
+        els.resultGrade.textContent = 'game over';
+        els.resultDetail.textContent =
+          `off ${pctOff.toFixed(2)}% · survived ${survival.count} · best ${best}`;
+        els.tryAgain.textContent = 'retry';
+      }
+      els.tryAgain.classList.add('show');
+      els.share.classList.remove('show');
+      return;
+    }
+
+    if (variant === 'invert') {
+      els.resultDetail.textContent =
+        `you picked ${fmt(value)} · off by ${fmt(diff)} (${pctOff.toFixed(2)}%)`;
+      els.result.classList.add('show');
+      recordStat(pctOff);
+      els.tryAgain.textContent = 'try again';
+      els.tryAgain.classList.add('show');
+      els.share.classList.add('show');
+      return;
+    }
+
+    // classic
+    els.resultDetail.textContent =
+      `you picked ${fmt(value)} · off by ${fmt(diff)} (${pctOff.toFixed(2)}%)`;
+    els.result.classList.add('show');
+    recordStat(pctOff);
+    els.tryAgain.textContent = 'try again';
+    els.tryAgain.classList.add('show');
+    els.share.classList.add('show');
+  }
+
+  // ---- reverse submit ---------------------------------------------------
+  function submitReverse() {
+    if (variant !== 'reverse' || state.daily || !state.awaitingClick) return;
+    const raw = els.reverseInput.value.replace(/[, ]/g, '');
+    if (raw === '' || isNaN(Number(raw))) return;
+    const guess = Math.round(Number(raw));
+    const n = state.max;
+    const diff = Math.abs(guess - state.answer);
+    const pctOff = (diff / n) * 100;
+    const g = grade(pctOff, currentMode);
+    state.awaitingClick = false;
+    state.lastPctOff = pctOff;
+    // reveal the marker's true value in the (now visible) number slot
+    showNumberMode();
+    els.targetNumber.textContent = fmt(state.answer);
+    els.guessMarker.style.left = `${Math.max(0, Math.min(1, guess / n)) * 100}%`;
+    els.guessMarker.classList.add('show');
+    els.resultGrade.textContent = g;
+    els.resultDetail.textContent =
+      `marker = ${fmt(state.answer)} · you said ${fmt(guess)} · off ${pctOff.toFixed(2)}%`;
+    els.result.classList.add('show');
+    recordStat(pctOff);
+    els.hint.style.opacity = '0';
+    els.tryAgain.textContent = 'try again';
+    els.tryAgain.classList.add('show');
+    els.share.classList.remove('show');
+  }
+  els.reverseInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') submitReverse(); });
+
+  // ---- wiring -----------------------------------------------------------
+  els.barContainer.addEventListener('click', handleClick);
+
+  els.tryAgain.addEventListener('click', () => {
+    if (daily.active) {
+      if (daily.index >= DAILY_ROUNDS) {
+        if (els.resultGrade.textContent === 'daily complete') { exitDaily(); return; }
+        showDailySummary();
+      } else { loadDailyRound(); }
+    } else { newRound(); }
+  });
+
+  els.variantSelect.addEventListener('change', () => {
+    if (daily.active) exitDaily();
+    const v = els.variantSelect.value;
+    if (!VARIANTS.includes(v)) return;
+    variant = v;
+    try { localStorage.setItem('ballpark.variant.v1', v); } catch {}
+    survival = { count: 0, over: false };
+    newRound();
+  });
+
+  els.modeSeg.addEventListener('click', (e) => {
+    const btn = e.target.closest('button[data-mode]');
+    if (!btn || daily.active) return;
+    const mode = btn.dataset.mode;
+    if (mode === currentMode) return;
+    currentMode = mode;
+    try { localStorage.setItem('ballpark.mode.v1', mode); } catch {}
+    [...els.modeSeg.children].forEach(b => b.classList.toggle('active', b.dataset.mode === mode));
+    survival = { count: 0, over: false };
+    newRound();
+  });
+
+  els.dailyBtn.addEventListener('click', () => {
+    if (daily.active) exitDaily(); else enterDaily();
+  });
+
+  // wordmark = home: reset to a fresh classic free-play round
+  document.getElementById('wordmark').addEventListener('click', () => {
+    if (daily.active) { exitDaily(); return; }
+    if (variant !== 'classic') {
+      variant = 'classic';
+      els.variantSelect.value = 'classic';
+      try { localStorage.setItem('ballpark.variant.v1', 'classic'); } catch {}
+    }
+    survival = { count: 0, over: false };
+    newRound();
+  });
+
+  els.themeBtn.addEventListener('click', () => {
+    theme = theme === 'light' ? 'dark' : 'light';
+    applyTheme(theme);
+    try { localStorage.setItem(THEME_KEY, theme); } catch {}
+  });
+
+  els.statReset.addEventListener('click', () => {
+    stats = { best: null, sumPct: 0, rounds: 0, streak: 0 };
+    saveStats(stats);
+    renderStats(stats);
+  });
+
+  // ---- share ------------------------------------------------------------
+  const SHARE_URL = (location.origin && location.origin.startsWith('http'))
+    ? location.origin : 'https://ballpark.pages.dev';
+
+  function buildShareText() {
+    if (daily.active && els.resultGrade.textContent === 'daily complete') {
+      const avg = state.lastPctOff;
+      const emojis = daily.results.map(r => gradeEmoji(r.grade)).join('');
+      let streak = 0;
+      try { streak = (JSON.parse(localStorage.getItem(DSTREAK_KEY) || '{}').streak) || 0; } catch {}
+      return `ballpark ${daily.date} · avg ${avg.toFixed(2)}% ${emojis}${streak > 1 ? ` · 🔥${streak}` : ''} ${SHARE_URL}`;
+    }
+    if (state.lastPctOff !== null) {
+      return `I was ${state.lastPctOff.toFixed(2)}% off on ballpark. Beat me: ${SHARE_URL}`;
+    }
+    return `ballpark: ${SHARE_URL}`;
+  }
+
+  // Render a square share card to a canvas (used for daily image share + OG image).
+  function readVar(name) { return getComputedStyle(document.documentElement).getPropertyValue(name).trim(); }
+  function drawCard(opts) {
+    const W = opts.width || 1200, H = opts.height || 630;
+    const c = document.createElement('canvas');
+    c.width = W; c.height = H;
+    const ctx = c.getContext('2d');
+    const bg = opts.bg || '#0c0d11', fg = opts.fg || '#e9e7e1';
+    const accent = opts.accent || '#8ad9b0', muted = opts.muted || '#7e828b';
+    ctx.fillStyle = bg; ctx.fillRect(0, 0, W, H);
+    const fam = '-apple-system, BlinkMacSystemFont, "SF Pro Display", Inter, system-ui, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillStyle = fg; ctx.font = `300 64px ${fam}`;
+    ctx.fillText('ballpark' , W / 2 - 10, H / 2 - 130);
+    ctx.fillStyle = accent; ctx.fillText('.', W / 2 + 150, H / 2 - 130);
+    ctx.fillStyle = fg; ctx.font = `200 120px ${fam}`;
+    ctx.fillText(opts.big || '', W / 2, H / 2 + 10);
+    ctx.fillStyle = muted; ctx.font = `300 40px ${fam}`;
+    ctx.fillText(opts.sub || '', W / 2, H / 2 + 90);
+    if (opts.emojis) { ctx.font = `300 60px ${fam}`; ctx.fillText(opts.emojis, W / 2, H / 2 + 180); }
+    return c;
+  }
+  function cardThemeOpts() {
+    return { bg: readVar('--bg') || '#0c0d11', fg: readVar('--fg') || '#e9e7e1',
+             accent: readVar('--accent') || '#8ad9b0', muted: readVar('--muted') || '#7e828b' };
+  }
+
+  async function shareDailyImage() {
+    const avg = state.lastPctOff;
+    const emojis = daily.results.map(r => gradeEmoji(r.grade)).join('');
+    const text = buildShareText();
+    const canvas = drawCard(Object.assign(cardThemeOpts(), {
+      big: `${avg.toFixed(1)}%`, sub: `daily · ${daily.date}`, emojis,
+    }));
+    const done = await new Promise((res) => {
+      canvas.toBlob(async (blob) => {
+        if (!blob) return res(false);
+        const file = new File([blob], 'ballpark.png', { type: 'image/png' });
+        if (navigator.canShare && navigator.canShare({ files: [file] })) {
+          try { await navigator.share({ files: [file], text, title: 'ballpark' }); return res(true); }
+          catch (e) { if (e && e.name === 'AbortError') return res(true); }
+        }
+        // fallback: download the image + copy the text
+        try {
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a'); a.href = url; a.download = 'ballpark.png';
+          document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
+        } catch {}
+        try { await navigator.clipboard.writeText(text); } catch {}
+        res(false);
+      }, 'image/png');
+    });
+    return done;
+  }
+
+  els.share.addEventListener('click', async () => {
+    if (daily.active && els.resultGrade.textContent === 'daily complete') {
+      const shared = await shareDailyImage();
+      if (!shared) { els.share.textContent = 'saved'; els.share.classList.add('copied'); setTimeout(() => { els.share.textContent = 'share'; els.share.classList.remove('copied'); }, 1600); }
+      return;
+    }
+    const text = buildShareText();
+    if (navigator.share) {
+      try { await navigator.share({ title: 'ballpark', text, url: SHARE_URL }); return; }
+      catch (e) { if (e.name === 'AbortError') return; }
+    }
+    try {
+      await navigator.clipboard.writeText(text);
+      els.share.textContent = 'copied'; els.share.classList.add('copied');
+      setTimeout(() => { els.share.textContent = 'share'; els.share.classList.remove('copied'); }, 1600);
+    } catch {}
+  });
+
+  // Re-pick only when geometry actually matters (classic/survival free play).
+  let resizeTimer;
+  window.addEventListener('resize', () => {
+    if (state.daily || daily.active) return;
+    if (variant !== 'classic' && variant !== 'survival') return;
+    if (!state.awaitingClick) return;
+    clearTimeout(resizeTimer);
+    resizeTimer = setTimeout(newRound, 150);
+  });
+
+  // --- smoke test: exercise every mode end-to-end; visible FAIL if anything
+  //     throws. Run by hand via __smoke() in console, or load with ?smoke=1.
+  function __smoke() {
+    const snap = {};
+    Object.keys(localStorage).filter(k => k.startsWith('ballpark.')).forEach(k => snap[k] = localStorage.getItem(k));
+    const origVariant = variant;
+    const results = [];
+    const fakeClick = () => { const r = els.bar.getBoundingClientRect(); handleClick({ clientX: r.left + r.width * 0.5 }); };
+    try {
+      ['classic', 'invert', 'world', 'reverse', 'survival'].forEach(v => {
+        try {
+          variant = v; els.variantSelect.value = v; newRound();
+          if (v === 'reverse') { els.reverseInput.value = '10'; submitReverse(); }
+          else fakeClick();
+          results.push(v + ':ok');
+        } catch (e) { results.push(v + ':FAIL ' + e.message); }
+      });
+      try {
+        variant = 'classic'; enterDaily(); fakeClick(); exitDaily();
+        results.push('daily:ok');
+      } catch (e) { results.push('daily:FAIL ' + e.message); }
+    } finally {
+      Object.keys(localStorage).filter(k => k.startsWith('ballpark.')).forEach(k => localStorage.removeItem(k));
+      Object.entries(snap).forEach(([k, val]) => localStorage.setItem(k, val));
+      variant = origVariant; els.variantSelect.value = origVariant;
+      if (daily.active) exitDaily(); else newRound();
+    }
+    const failed = results.filter(r => r.includes('FAIL'));
+    (failed.length ? console.error : console.log)('ballpark smoke:', results.join(' | '));
+    if (failed.length) shipBanner('smoke FAIL: ' + failed.join(' ; '));
+    return { pass: failed.length === 0, results };
+  }
+  window.__smoke = __smoke;
+
+  // ---- init -------------------------------------------------------------
+  [...els.modeSeg.children].forEach(b => b.classList.toggle('active', b.dataset.mode === currentMode));
+  refreshDailyBadge();
+  newRound();
+  if (location.search.includes('smoke')) __smoke();
+</script>
+</body>
+</html>
