@@ -784,6 +784,25 @@
     return isYear ? String(v) : Math.round(v).toLocaleString();
   }
 
+  // ---- scoring (pure) ---------------------------------------------------
+  // A `round` is { min, max, answer, invert }. These are the single source of
+  // truth for the line<->value mapping and grading; both the click path and the
+  // reverse-input path go through them, so the math lives in exactly one place.
+  function ratioToValue(round, ratio) {
+    const r = round.invert ? (1 - ratio) : ratio; // flipped axis maps right→left
+    return Math.round(round.min + r * (round.max - round.min));
+  }
+  function valueToRatio(round, value) {
+    const r = (value - round.min) / (round.max - round.min);
+    return round.invert ? (1 - r) : r;
+  }
+  function score(round, value, mode) {
+    const diff = Math.abs(value - round.answer);
+    const pctOff = (diff / (round.max - round.min)) * 100;
+    return { value, diff, pctOff, grade: grade(pctOff, mode) };
+  }
+  function roundOf(s) { return { min: s.min, max: s.max, answer: s.answer, invert: s.invert }; }
+
   // ---- per-mode stats ---------------------------------------------------
   // Estimation variants each keep their own best/avg/streak/rounds. World has
   // no difficulty (range comes from the fact), so it uses one shared key.
@@ -1151,17 +1170,11 @@
     const rect = els.bar.getBoundingClientRect();
     const x = e.clientX - rect.left;
     const ratio = Math.max(0, Math.min(1, x / rect.width));
-    const range = state.max - state.min;
-    const posRatio = state.invert ? (1 - ratio) : ratio; // flipped axis maps right→left
-    const value = Math.round(state.min + posRatio * range);
-    const diff = Math.abs(value - state.answer);
-    const pctOff = (diff / range) * 100;
-    let answerRatio = (state.answer - state.min) / range;
-    if (state.invert) answerRatio = 1 - answerRatio;
-    const g = grade(pctOff, effMode());
+    const round = roundOf(state);
+    const { value, diff, pctOff, grade: g } = score(round, ratioToValue(round, ratio), effMode());
 
     els.guessMarker.style.left = `${ratio * 100}%`;
-    els.targetMarker.style.left = `${answerRatio * 100}%`;
+    els.targetMarker.style.left = `${valueToRatio(round, state.answer) * 100}%`;
     els.guessMarker.classList.add('show');
     els.targetMarker.classList.add('show');
     els.resultGrade.textContent = g;
@@ -1245,17 +1258,15 @@
     if (variant !== 'reverse' || state.daily || !state.awaitingClick) return;
     const raw = els.reverseInput.value.replace(/[, ]/g, '');
     if (raw === '' || isNaN(Number(raw))) return;
+    const round = roundOf(state); // reverse line is never inverted
     const guess = Math.round(Number(raw));
-    const n = state.max;
-    const diff = Math.abs(guess - state.answer);
-    const pctOff = (diff / n) * 100;
-    const g = grade(pctOff, currentMode);
+    const { pctOff, grade: g } = score(round, guess, currentMode);
     state.awaitingClick = false;
     state.lastPctOff = pctOff;
     // reveal the marker's true value in the (now visible) number slot
     showNumberMode();
     els.targetNumber.textContent = fmt(state.answer);
-    els.guessMarker.style.left = `${Math.max(0, Math.min(1, guess / n)) * 100}%`;
+    els.guessMarker.style.left = `${Math.max(0, Math.min(1, guess / state.max)) * 100}%`;
     els.guessMarker.classList.add('show');
     els.resultGrade.textContent = g;
     els.resultDetail.textContent =
