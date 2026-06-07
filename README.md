@@ -72,8 +72,11 @@ Any static host works. This repo deploys to **Cloudflare Pages**: framework
 `location.origin` at runtime; the `https://ballpark.kazani.workers.dev` fallback
 only shows up when the file is opened locally.
 
-## Credits
+## Credits & license
 
-A fork of the **eyeball** estimation game — rebuilt and extended with the modes,
-daily challenge, theming, and stats above. Built by
+An independent reimplementation inspired by **[eyeball](https://eyeball.rory.codes)**
+by rory flint — rebuilt from scratch and extended with the modes, daily challenge,
+theming, and stats above. No eyeball source code was used. Built by
 [kazani](https://farcaster.xyz/kazani).
+
+Released under the [MIT License](LICENSE).
