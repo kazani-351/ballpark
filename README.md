@@ -6,7 +6,7 @@ A number appears above a line. Click where you think it lands. Your score is how
 far off you were, as a percentage of the range. Chase **perfect**, keep a streak
 alive, come back for the daily.
 
-**[▶ Play it](https://ballpark.pages.dev)** · no install, no sign-up, works in any browser.
+**[▶ Play it](https://ballpark.kazani.workers.dev)** · no install, no sign-up, works in any browser.
 
 ![ballpark](og-image.png)
 
@@ -69,8 +69,8 @@ Append `?smoke=1` to the URL to run the self-test and log the result to the cons
 
 Any static host works. This repo deploys to **Cloudflare Pages**: framework
 *None*, no build command, output directory `/`. The share URL uses
-`location.origin` at runtime; the `https://ballpark.pages.dev` fallback only
-shows up when the file is opened locally.
+`location.origin` at runtime; the `https://ballpark.kazani.workers.dev` fallback
+only shows up when the file is opened locally.
 
 ## Credits
 
