@@ -669,11 +669,12 @@
   }
 
   // ---- variant ----------------------------------------------------------
-  const VARIANTS = ['classic', 'invert', 'world', 'reverse', 'survival'];
+  const VARIANT_NAMES = ['classic', 'invert', 'world', 'reverse', 'survival'];
   // First-time visitors land on `world` (the front-door mode); returning players
-  // keep their last choice.
+  // keep their last choice. The per-variant behaviour table `VARIANTS` is defined
+  // further down (after the round builders it references).
   let variant = 'world';
-  try { const v = localStorage.getItem('ballpark.variant.v1'); if (VARIANTS.includes(v)) variant = v; } catch {}
+  try { const v = localStorage.getItem('ballpark.variant.v1'); if (VARIANT_NAMES.includes(v)) variant = v; } catch {}
 
   // World facts: place a real value on a labelled range, then reveal.
   const WORLD = [
@@ -806,7 +807,6 @@
   // ---- per-mode stats ---------------------------------------------------
   // Estimation variants each keep their own best/avg/streak/rounds. World has
   // no difficulty (range comes from the fact), so it uses one shared key.
-  const STAT_VARIANTS = ['classic', 'invert', 'world', 'reverse'];
   function statsKey() {
     return variant === 'world'
       ? 'ballpark.stats.v1.world'
@@ -994,7 +994,7 @@
     els.share.classList.remove('show', 'copied');
     els.share.textContent = 'share';
     state.lastPctOff = null;
-    els.hint.textContent = (variant === 'reverse' && !state.daily) ? 'type the number, then enter' : 'click the line';
+    els.hint.textContent = (VARIANTS[variant].usesInput && !state.daily) ? 'type the number, then enter' : 'click the line';
     els.hint.style.opacity = '0.6';
     els.targetNumber.style.animation = 'none';
     void els.targetNumber.offsetWidth;
@@ -1009,15 +1009,13 @@
     state.daily = false;
     state.invert = false;
     state.variant = variant;
-    els.toolbar.classList.toggle('no-diff', variant === 'world');
-    setStatsVisible(STAT_VARIANTS.includes(variant));
+    const reg = VARIANTS[variant];
+    els.toolbar.classList.toggle('no-diff', reg.noDiff);
+    setStatsVisible(reg.showsStats);
     stats = loadStats();
     renderStats(stats);
     refreshDailyBadge();
-    if (variant === 'world') return newWorldRound();
-    if (variant === 'reverse') return newReverseRound();
-    if (variant === 'invert') return newInvertRound();
-    return newClassicRound(); // classic + survival
+    reg.setup();
   }
 
   function newInvertRound() {
@@ -1162,10 +1160,66 @@
     newRound();
   }
 
-  // ---- click (classic / world / survival / daily) -----------------------
+  // ---- per-variant result renderers (called by handleClick after scoring) ---
+  // ctx = { value, diff, pctOff, g }. Each variant owns its result line + the
+  // tryAgain/share/stats follow-up. Daily has its own path inside handleClick.
+  function resultEstimate(ctx) { // classic + invert (identical)
+    els.resultDetail.textContent =
+      `you picked ${fmt(ctx.value)} · off by ${fmt(ctx.diff)} (${ctx.pctOff.toFixed(2)}%)`;
+    els.result.classList.add('show');
+    recordStat(ctx.pctOff);
+    els.tryAgain.textContent = 'try again';
+    els.tryAgain.classList.add('show');
+    els.share.classList.add('show');
+  }
+  function resultWorld(ctx) {
+    const w = state.world;
+    els.targetNumber.textContent = fmt(w.ans, w.year);
+    els.resultDetail.textContent =
+      `answer ${fmt(w.ans, w.year)}${w.unit ? ' ' + w.unit : ''} · you said ${fmt(ctx.value, w.year)} · off ${ctx.pctOff.toFixed(2)}%`;
+    els.result.classList.add('show');
+    recordStat(ctx.pctOff);
+    els.tryAgain.textContent = 'next';
+    els.tryAgain.classList.add('show');
+    els.share.classList.remove('show');
+  }
+  function resultSurvival(ctx) {
+    els.result.classList.add('show');
+    if (ctx.pctOff < MODES[currentMode].miss) {
+      survival.count += 1;
+      els.resultDetail.textContent =
+        `you picked ${fmt(ctx.value)} · off ${ctx.pctOff.toFixed(2)}% · ${survival.count} survived`;
+      els.tryAgain.textContent = 'next';
+    } else {
+      survival.over = true;
+      let best = 0;
+      try { best = parseInt(localStorage.getItem('ballpark.survival.v1') || '0', 10) || 0; } catch {}
+      best = Math.max(best, survival.count);
+      try { localStorage.setItem('ballpark.survival.v1', String(best)); } catch {}
+      els.resultGrade.textContent = 'game over';
+      els.resultDetail.textContent =
+        `off ${ctx.pctOff.toFixed(2)}% · survived ${survival.count} · best ${best}`;
+      els.tryAgain.textContent = 'retry';
+    }
+    els.tryAgain.classList.add('show');
+    els.share.classList.remove('show');
+  }
+
+  // ---- variant registry: one row per mode instead of scattered if-chains ----
+  // setup() builds a round; onResult() renders the outcome; the flags drive the
+  // toolbar/stats/input wiring. Adding a mode = one row here + a <select> option.
+  const VARIANTS = {
+    classic:  { setup: newClassicRound, onResult: resultEstimate, showsStats: true,  noDiff: false, usesInput: false },
+    invert:   { setup: newInvertRound,  onResult: resultEstimate, showsStats: true,  noDiff: false, usesInput: false },
+    world:    { setup: newWorldRound,   onResult: resultWorld,    showsStats: true,  noDiff: true,  usesInput: false },
+    reverse:  { setup: newReverseRound, onResult: null,           showsStats: true,  noDiff: false, usesInput: true  },
+    survival: { setup: newClassicRound, onResult: resultSurvival, showsStats: false, noDiff: false, usesInput: false },
+  };
+
+  // ---- click (classic / invert / world / survival / daily) -----------------
   function handleClick(e) {
     if (!state.awaitingClick) return;
-    if (variant === 'reverse' && !state.daily) return; // reverse uses the input, not the line
+    if (VARIANTS[variant].usesInput && !state.daily) return; // reverse uses the input, not the line
 
     const rect = els.bar.getBoundingClientRect();
     const x = e.clientX - rect.left;
@@ -1195,62 +1249,7 @@
       return;
     }
 
-    if (variant === 'world') {
-      const w = state.world;
-      els.targetNumber.textContent = fmt(w.ans, w.year);
-      els.resultDetail.textContent =
-        `answer ${fmt(w.ans, w.year)}${w.unit ? ' ' + w.unit : ''} · you said ${fmt(value, w.year)} · off ${pctOff.toFixed(2)}%`;
-      els.result.classList.add('show');
-      recordStat(pctOff);
-      els.tryAgain.textContent = 'next';
-      els.tryAgain.classList.add('show');
-      els.share.classList.remove('show');
-      return;
-    }
-
-    if (variant === 'survival') {
-      const survived = pctOff < MODES[currentMode].miss;
-      els.result.classList.add('show');
-      if (survived) {
-        survival.count += 1;
-        els.resultDetail.textContent =
-          `you picked ${fmt(value)} · off ${pctOff.toFixed(2)}% · ${survival.count} survived`;
-        els.tryAgain.textContent = 'next';
-      } else {
-        survival.over = true;
-        let best = 0;
-        try { best = parseInt(localStorage.getItem('ballpark.survival.v1') || '0', 10) || 0; } catch {}
-        best = Math.max(best, survival.count);
-        try { localStorage.setItem('ballpark.survival.v1', String(best)); } catch {}
-        els.resultGrade.textContent = 'game over';
-        els.resultDetail.textContent =
-          `off ${pctOff.toFixed(2)}% · survived ${survival.count} · best ${best}`;
-        els.tryAgain.textContent = 'retry';
-      }
-      els.tryAgain.classList.add('show');
-      els.share.classList.remove('show');
-      return;
-    }
-
-    if (variant === 'invert') {
-      els.resultDetail.textContent =
-        `you picked ${fmt(value)} · off by ${fmt(diff)} (${pctOff.toFixed(2)}%)`;
-      els.result.classList.add('show');
-      recordStat(pctOff);
-      els.tryAgain.textContent = 'try again';
-      els.tryAgain.classList.add('show');
-      els.share.classList.add('show');
-      return;
-    }
-
-    // classic
-    els.resultDetail.textContent =
-      `you picked ${fmt(value)} · off by ${fmt(diff)} (${pctOff.toFixed(2)}%)`;
-    els.result.classList.add('show');
-    recordStat(pctOff);
-    els.tryAgain.textContent = 'try again';
-    els.tryAgain.classList.add('show');
-    els.share.classList.add('show');
+    VARIANTS[variant].onResult({ value, diff, pctOff, g });
   }
 
   // ---- reverse submit ---------------------------------------------------
@@ -1295,7 +1294,7 @@
   els.variantSelect.addEventListener('change', () => {
     if (daily.active) exitDaily();
     const v = els.variantSelect.value;
-    if (!VARIANTS.includes(v)) return;
+    if (!VARIANT_NAMES.includes(v)) return;
     variant = v;
     try { localStorage.setItem('ballpark.variant.v1', v); } catch {}
     survival = { count: 0, over: false };
